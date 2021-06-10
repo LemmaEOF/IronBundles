@@ -1,11 +1,11 @@
 plugins {
-	id "fabric-loom" version "0.5-SNAPSHOT"
+	id "fabric-loom" version "0.8.+"
 	id "maven-publish"
 	id "com.jfrog.artifactory" version "4.15.2"
 }
 
-sourceCompatibility = 1.8
-targetCompatibility = 1.8
+// This field defines the Java version your mod target.
+def targetJavaVersion = 16
 
 if(rootProject.file("private.gradle").exists()) { //Publishing details
 	apply from: "private.gradle"
@@ -20,7 +20,6 @@ minecraft {
 
 repositories {
 	maven { url "https://server.bbkr.space/artifactory/libs-release" } // Cotton maven - home of Cotton projects
-	maven { url "https://dl.bintray.com/ladysnake/libs" } // Ladysnake maven - home of Cardinal Components
 }
 
 dependencies {
@@ -31,34 +30,31 @@ dependencies {
 	compileOnly "com.google.code.findbugs:jsr305:3.0.2"
 }
 
+java {
+	sourceCompatibility = JavaVersion.toVersion(targetJavaVersion)
+	targetCompatibility = JavaVersion.toVersion(targetJavaVersion)
+
+	withSourcesJar()
+}
+
+tasks.withType(JavaCompile).configureEach {
+	it.options.encoding = 'UTF-8'
+
+	it.options.release.set(targetJavaVersion)
+}
+
 processResources {
-	inputs.property "version", project.version
-	from(sourceSets.main.resources.srcDirs) {
-		include "fabric.mod.json"
-		expand version: project.version
-	}
-	from(sourceSets.main.resources.srcDirs) {
-		exclude "fabric.mod.json"
-	}
-}
+	inputs.property 'version', project.version
 
-// ensure that the encoding is set to UTF-8, no matter what the system default is
-// this fixes some edge cases with special characters not displaying correctly
-// see http://yodaconditions.net/blog/fix-for-java-file-encoding-problems-with-gradle.html
-tasks.withType(JavaCompile) {
-	options.encoding = "UTF-8"
-}
-
-// Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
-// if it is present.
-// If you remove this task, sources will not be generated.
-task sourcesJar(type: Jar, dependsOn: classes) {
-	archiveClassifier = "sources"
-	from sourceSets.main.allSource
+	filesMatching('fabric.mod.json') {
+		expand 'version': project.version
+	}
 }
 
 jar {
-	from "LICENSE"
+	from('LICENSE') {
+		rename { "${it}_${project.archivesBaseName}" }
+	}
 }
 
 // configure the maven publication

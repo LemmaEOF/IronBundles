@@ -1,0 +1,10 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:bundle",
+    "ironbundles:iron_bundle",
+    "ironbundles:gold_bundle",
+    "ironbundles:diamond_bundle",
+    "ironbundles:netherite_bundle"
+  ]
+}
