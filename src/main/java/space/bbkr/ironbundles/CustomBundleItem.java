@@ -8,17 +8,14 @@ import net.minecraft.client.item.BundleTooltipData;
 import net.minecraft.client.item.TooltipContext;
 import net.minecraft.client.item.TooltipData;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.inventory.Inventories;
 import net.minecraft.inventory.Inventory;
-import net.minecraft.inventory.SimpleInventory;
+import net.minecraft.inventory.StackReference;
 import net.minecraft.item.BundleItem;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.Tag;
+import net.minecraft.nbt.NbtCompound;
+import net.minecraft.nbt.NbtList;
 import net.minecraft.screen.slot.Slot;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
@@ -50,16 +47,16 @@ public class CustomBundleItem extends Item {
 	}
 
 	@Override
-	public boolean onStackClicked(ItemStack stack, Slot slot, ClickType clickType, PlayerInventory playerInventory) {
+	public boolean onStackClicked(ItemStack stack, Slot slot, ClickType clickType, PlayerEntity player) {
 		if (clickType != ClickType.RIGHT) {
 			return false;
 		} else {
 			ItemStack slotStack = slot.getStack();
 			if (slotStack.isEmpty()) {
-				getTopStack(slotStack).ifPresent((itemStack2) -> addToBundle(slotStack, slot.method_32756(itemStack2)));
-			} else if (slotStack.getItem().hasStoredInventory()) {
+				getTopStack(slotStack).ifPresent(removedStack -> addToBundle(slotStack, slot.insertStack(removedStack)));
+			} else if (slotStack.getItem().canBeNested()) {
 				int i = (maxCapacity - getBundleOccupancy(stack)) / getItemOccupancy(slotStack);
-				addToBundle(stack, slot.method_32753(slotStack.getCount(), i, playerInventory.player));
+				addToBundle(stack, slot.takeStackRange(slotStack.getCount(), i, player));
 			}
 
 			return true;
@@ -67,10 +64,11 @@ public class CustomBundleItem extends Item {
 	}
 
 	@Override
-	public boolean onClicked(ItemStack stack, ItemStack otherStack, Slot slot, ClickType clickType, PlayerInventory playerInventory) {
-		if (clickType == ClickType.RIGHT && slot.method_32754(playerInventory.player)) {
+	public boolean onClicked(ItemStack stack, ItemStack otherStack, Slot slot, ClickType clickType, PlayerEntity player,
+							 StackReference cursorStackReference) {
+		if (clickType == ClickType.RIGHT && slot.canTakePartial(player)) {
 			if (otherStack.isEmpty()) {
-				getTopStack(stack).ifPresent(playerInventory::setCursorStack);
+				getTopStack(stack).ifPresent(cursorStackReference::set);
 			} else {
 				otherStack.decrement(addToBundle(stack, otherStack));
 			}
@@ -106,14 +104,14 @@ public class CustomBundleItem extends Item {
 	}
 
 	private int addToBundle(ItemStack bundle, ItemStack stack) {
-		if (!stack.isEmpty() && stack.getItem().hasStoredInventory()) {
-			CompoundTag tag = bundle.getOrCreateTag();
+		if (!stack.isEmpty() && stack.getItem().canBeNested()) {
+			var tag = bundle.getOrCreateTag();
 			if (!tag.contains("Items")) {
-				tag.put("Items", new ListTag());
+				tag.put("Items", new NbtList());
 			}
 
-			ListTag items = tag.getList("Items", 10);
-			BundleInventory inv = new BundleInventory(bundle, items);
+			var items = tag.getList("Items", 10);
+			var inv = new BundleInventory(bundle, items);
 			int remainder = stack.getCount() - inv.addStack(stack).getCount();
 			tag.put("Items", inv.getTags());
 			return remainder;
@@ -136,16 +134,16 @@ public class CustomBundleItem extends Item {
 	}
 
 	private static Optional<ItemStack> getTopStack(ItemStack itemStack) {
-		CompoundTag tag = itemStack.getOrCreateTag();
+		var tag = itemStack.getOrCreateTag();
 		if (!tag.contains("Items")) {
 			return Optional.empty();
 		} else {
-			ListTag items = tag.getList("Items", 10);
+			var items = tag.getList("Items", 10);
 			if (items.isEmpty()) {
 				return Optional.empty();
 			} else {
-				CompoundTag item = items.getCompound(0);
-				ItemStack stack = ItemStack.fromTag(item);
+				var item = items.getCompound(0);
+				var stack = ItemStack.fromNbt(item);
 				items.remove(0);
 				return Optional.of(stack);
 			}
@@ -153,16 +151,16 @@ public class CustomBundleItem extends Item {
 	}
 
 	private static boolean dumpBundle(ItemStack itemStack, PlayerEntity playerEntity) {
-		CompoundTag tag = itemStack.getOrCreateTag();
+		var tag = itemStack.getOrCreateTag();
 		if (!tag.contains("Items")) {
 			return false;
 		} else {
 			if (playerEntity instanceof ServerPlayerEntity) {
-				ListTag items = tag.getList("Items", 10);
+				var items = tag.getList("Items", 10);
 
 				for(int i = 0; i < items.size(); ++i) {
-					CompoundTag item = items.getCompound(i);
-					ItemStack stack = ItemStack.fromTag(item);
+					var item = items.getCompound(i);
+					var stack = ItemStack.fromNbt(item);
 					playerEntity.dropItem(stack, true);
 				}
 			}
@@ -173,13 +171,12 @@ public class CustomBundleItem extends Item {
 	}
 
 	private static Stream<ItemStack> getBundledStacks(ItemStack stack) {
-		CompoundTag compoundTag = stack.getTag();
+		var compoundTag = stack.getTag();
 		if (compoundTag == null) {
 			return Stream.empty();
 		} else {
-			ListTag listTag = compoundTag.getList("Items", 10);
-			Stream<Tag> stream = listTag.stream();
-			return stream.map(CompoundTag.class::cast).map(ItemStack::fromTag);
+			var listTag = compoundTag.getList("Items", 10);
+			return listTag.stream().map(NbtCompound.class::cast).map(ItemStack::fromNbt);
 		}
 	}
 
@@ -206,13 +203,13 @@ public class CustomBundleItem extends Item {
 		private BundleInventory(ItemStack bundle) {
 			this.bundle = bundle;
 			if (bundle.hasTag() && bundle.getTag().contains("Items")) {
-				this.readTags(bundle.getTag().getList("Items", NbtType.COMPOUND));
+				this.readNbt(bundle.getTag().getList("Items", NbtType.COMPOUND));
 			}
 		}
 
-		private BundleInventory(ItemStack bundle, ListTag tag) {
+		private BundleInventory(ItemStack bundle, NbtList nbtList) {
 			this.bundle = bundle;
-			this.readTags(tag);
+			this.readNbt(nbtList);
 		}
 
 		public ItemStack addStack(ItemStack stack) {
@@ -253,9 +250,9 @@ public class CustomBundleItem extends Item {
 
 		}
 
-		public void readTags(ListTag tags) {
+		public void readNbt(NbtList tags) {
 			for(int i = tags.size(); i >= 0; --i) {
-				ItemStack itemStack = ItemStack.fromTag(tags.getCompound(i));
+				ItemStack itemStack = ItemStack.fromNbt(tags.getCompound(i));
 				if (!itemStack.isEmpty()) {
 					this.addStack(itemStack);
 				}
@@ -263,13 +260,13 @@ public class CustomBundleItem extends Item {
 			this.markDirty();
 		}
 
-		public ListTag getTags() {
-			ListTag listTag = new ListTag();
+		public NbtList getTags() {
+			var listTag = new NbtList();
 
 			for(int i = 0; i < this.size(); ++i) {
 				ItemStack itemStack = this.getStack(i);
 				if (!itemStack.isEmpty()) {
-					listTag.add(itemStack.toTag(new CompoundTag()));
+					listTag.add(itemStack.writeNbt(new NbtCompound()));
 				}
 			}
 

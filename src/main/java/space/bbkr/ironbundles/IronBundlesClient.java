@@ -8,9 +8,13 @@ public class IronBundlesClient implements ClientModInitializer {
 
 	@Override
 	public void onInitializeClient() {
-		FabricModelPredicateProviderRegistry.register(IronBundles.IRON_BUNDLE, new Identifier("filled"), (itemStack, clientWorld, livingEntity, i) -> ((CustomBundleItem) IronBundles.IRON_BUNDLE).getAmountFilled(itemStack));
-		FabricModelPredicateProviderRegistry.register(IronBundles.GOLD_BUNDLE, new Identifier("filled"), (itemStack, clientWorld, livingEntity, i) -> ((CustomBundleItem) IronBundles.GOLD_BUNDLE).getAmountFilled(itemStack));
-		FabricModelPredicateProviderRegistry.register(IronBundles.DIAMOND_BUNDLE, new Identifier("filled"), (itemStack, clientWorld, livingEntity, i) -> ((CustomBundleItem) IronBundles.DIAMOND_BUNDLE).getAmountFilled(itemStack));
-		FabricModelPredicateProviderRegistry.register(IronBundles.NETHERITE_BUNDLE, new Identifier("filled"), (itemStack, clientWorld, livingEntity, i) -> ((CustomBundleItem) IronBundles.NETHERITE_BUNDLE).getAmountFilled(itemStack));
+		FabricModelPredicateProviderRegistry.register(IronBundles.IRON_BUNDLE, new Identifier("filled"),
+				(itemStack, clientWorld, livingEntity, i) -> IronBundles.IRON_BUNDLE.getAmountFilled(itemStack));
+		FabricModelPredicateProviderRegistry.register(IronBundles.GOLD_BUNDLE, new Identifier("filled"),
+				(itemStack, clientWorld, livingEntity, i) -> IronBundles.GOLD_BUNDLE.getAmountFilled(itemStack));
+		FabricModelPredicateProviderRegistry.register(IronBundles.DIAMOND_BUNDLE, new Identifier("filled"),
+				(itemStack, clientWorld, livingEntity, i) -> IronBundles.DIAMOND_BUNDLE.getAmountFilled(itemStack));
+		FabricModelPredicateProviderRegistry.register(IronBundles.NETHERITE_BUNDLE, new Identifier("filled"),
+				(itemStack, clientWorld, livingEntity, i) -> IronBundles.NETHERITE_BUNDLE.getAmountFilled(itemStack));
 	}
 }
